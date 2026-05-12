@@ -1,0 +1,245 @@
+/* MATRIX GREEN – CLEAN & MINIMAL EDITION */
+/* Tetap hijau ikonik, tapi tidak norak, tidak terlalu ramai, cocok buat kerja lama */
+
+/* ==== MENU BAR & MENU – FONT BESAR & HIJAU MATRIX ==== */
+QMenuBar {
+    background: #000000;
+    color: #00ff00;
+    font-family: "Terminus", "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
+    font-size: 12px;           /* sama seperti bagian lain */
+    font-weight: bold;
+    border-bottom: 1px solid #004400;
+    padding: 4px 0;
+}
+
+QMenuBar::item {
+    background: transparent;
+    color: #00ff00;
+    padding: 6px 14px;
+    border-radius: 3px;
+}
+
+QMenuBar::item:selected {
+    background: #003300;
+    color: #88ff88;
+}
+
+QMenuBar::item:pressed {
+    background: #004400;
+    color: #ffffff;
+}
+
+/* Menu dropdown (File, View, Tools, dll) */
+QMenu {
+    background: #000000;
+    color: #00ff00;
+    border: 1px solid #004400;
+    font-size: 13px;
+    font-family: "Hack";
+}
+
+QMenu::item {
+    padding: 8px 20px;
+}
+
+QMenu::item:selected {
+    background: #003300;
+    color: #88ff88;
+}
+
+
+QMainWindow, QWidget {
+    background: #000000;
+    color: #00ff00;
+    font-family: "Terminus";
+    font-size: 13px;
+}
+
+/* Hilangkan gradient berlebihan di mana-mana */
+QMainWindow {
+    background: #000000;
+    border: none;
+}
+
+/* Button – flat & minimal (mirip red_team) */
+QPushButton {
+    background: #001100;
+    color: #00ff00;
+    border: 1px solid #004400;
+    padding: 7px 12px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background: #003300;
+    border: 1px solid #00ff00;
+}
+QPushButton:pressed {
+    background: #002200;
+}
+QPushButton[action="danger"] {
+    background: #220000;
+    color: #ff5555;
+    border: 1px solid #440000;
+}
+QPushButton[action="danger"]:hover {
+    background: #330000;
+    border: 1px solid #ff5555;
+}
+
+/* Input & TextEdit – super clean */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background: #000000;
+    color: #00ff00;
+    border: 1px solid #003300;
+    border-radius: 3px;
+    padding: 6px;
+    selection-background-color: #00ff00;
+    selection-color: #000000;
+}
+QLineEdit:focus, QTextEdit:focus {
+    border: 1px solid #00ff00;
+    background: #001100;
+}
+
+
+/* List & Table – minimal */
+QListWidget, QTableWidget, QTreeWidget {
+    background: #000000;
+    color: #00ff00;
+    border: 1px solid #003300;
+    alternate-background-color: #001100;
+    outline: none;
+}
+QListWidget::item, QTableWidget::item {
+    padding: 6px;
+    border-bottom: 1px solid #002200;
+}
+QListWidget::item:selected, QTableWidget::item:selected {
+    background: #003300;
+    color: #ffffff;
+}
+QListWidget::item:hover {
+    background: #002200;
+}
+
+/* Tab – paling penting: clean seperti red_team */
+QTabWidget::pane {
+    border: 1px solid #003300;
+    background: #000000;
+    border-radius: 4px;
+}
+QTabBar::tab {
+    background: #001100;
+    color: #00bb00;
+    border: 1px solid #003300;
+    padding: 10px 18px;
+    font-family: "Terminus";
+    font-size: 15px;
+    margin-right: 2px;
+    min-width: 55px;
+}
+QTabBar::tab:selected {
+    background: #00ff00;
+    color: #000000;
+    border: 1px solid #00ff00;
+}
+QTabBar::tab:hover:!selected {
+    background: #002200;
+    color: #88ff88;
+    border: 1px solid #004400;
+}
+
+/* Header & GroupBox – tipis saja */
+QGroupBox {
+    color: #00ff00;
+    border: 1px solid #003300;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-radius: 4px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 6px;
+    background: #000000;
+}
+
+/* Scrollbar – tipis dan tidak mengganggu */
+QScrollBar:vertical {
+    background: #000000;
+    width: 10px;
+    border: none;
+}
+QScrollBar::handle:vertical {
+    background: #003300;
+    border-radius: 4px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #006600;
+}
+
+/* Progressbar & ComboBox – minimal */
+QProgressBar {
+    border: 1px solid #003300;
+    background: #000000;
+    text-align: center;
+    color: #00ff00;
+}
+QProgressBar::chunk {
+    background: #00ff00;
+}
+
+QComboBox {
+    background: #000000;
+    color: #00ff00;
+    border: 1px solid #003300;
+    padding: 5px;
+    border-radius: 3px;
+}
+QComboBox:hover {
+    border: 1px solid #00ff00;
+}
+
+/* Tooltip & Menu – jangan terlalu mencolok */
+QToolTip, QMenu {
+    background: #001100;
+    color: #00ff00;
+    border: 1px solid #003300;
+}
+
+/* SESSION INFO – MATRIX GREEN (khusus buat kode kamu yang gak mau diubah) */
+QGroupBox:title["Session Info"] {
+    background: #000000;
+    border: 2px solid #00ff00;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    color: #88ff88;
+    font-weight: bold;
+}
+
+QGroupBox:title["Session Info"]::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 15px;
+    padding: 4px 14px;
+    background: #00ff00;
+    color: #000000;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+/* Biar teks di dalamnya tetap hijau terang & rapi */
+QGroupBox:title["Session Info"] QTextEdit {
+    background: #001100;
+    color: #88ff88;
+    border: none;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: "Hack", "Consolas", monospace;
+    font-size: 11px;
+}

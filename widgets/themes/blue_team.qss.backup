@@ -1,0 +1,289 @@
+/* BLUE TEAM MODE — PROFESSIONAL SOC EDITION 2025 */
+/* Warna biru defensif, kontras tinggi tapi tetap eye-friendly */
+/* Cocok buat monitoring lama, dashboard SOC, dan daily use */
+
+* {
+    font-family: "Consolas", "JetBrains Mono", "DejaVu Sans Mono", "Courier New", monospace;
+    font-size: 11pt;
+}
+
+/* Background utama — biru tua pekat tapi tidak hitam total */
+QMainWindow, QWidget {
+    background: #0d1b2a;
+    color: #c9d1d9;
+}
+
+/* Main window tanpa border/gangguan */
+QMainWindow {
+    background: #0d1b2a;
+    border: none;
+}
+
+/* Button — flat, biru solid, fokus pada fungsi */
+QPushButton {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-family: "Terminus";
+    font-size: 15px;
+    text-align: center;
+    min-width: 50px;
+    min-height: 18px;
+   
+}
+QPushButton:hover {
+    background: #415a77;
+    border: 1px solid #778da9;
+    color: white;
+}
+QPushButton:pressed {
+    background: #0d1b2a;
+    border: 1px solid #778da9;
+}
+QPushButton:disabled {
+    background: #0d1b2a;
+    color: #555;
+    border: 1px solid #333;
+}
+
+/* Tombol aksi penting */
+QPushButton[action="run"], QPushButton[action="start"] {
+    background: #006ba6;
+    color: white;
+    border: 1px solid #0099e6;
+    font-weight: bold;
+}
+QPushButton[action="run"]:hover {
+    background: #0099e6;
+}
+
+/* Tombol danger tetap merah tapi tidak mencolok */
+QPushButton[action="danger"], QPushButton[action="stop"] {
+    background: #8b1e3f;
+    color: #ffcccc;
+    border: 1px solid #c2185b;
+}
+QPushButton[action="danger"]:hover {
+    background: #c2185b;
+    color: white;
+}
+
+/* Input & TextEdit — kontras tinggi tapi tetap soft */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    border-radius: 5px;
+    padding: 8px;
+    selection-background-color: #415a77;
+    selection-color: white;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid #778da9;
+    background: #0d1b2a;
+}
+
+/* Module detail — bersih & mudah dibaca */
+QTextEdit#module_detail_info {
+    background: #1b263b;
+    color: #a3bffa;
+    border: 1px solid #415a77;
+    border-radius: 5px;
+    padding: 12px;
+    font-size: 12pt;
+}
+
+/* List & Tree */
+QListWidget, QTableWidget, QTreeWidget {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    alternate-background-color: #0d1b2a;
+    outline: none;
+}
+QListWidget::item, QTableWidget::item {
+    padding: 9px;
+}
+QListWidget::item:selected, QTableWidget::item:selected {
+    background: #415a77;
+    color: white;
+}
+QListWidget::item:hover {
+    background: #2d4059;
+}
+
+/* Tab — minimalis & elegan */
+QTabWidget::pane {
+    border: 1px solid #415a77;
+    background: #0d1b2a;
+    border-radius: 5px;
+    top: -1px;
+}
+QTabBar::tab {
+    background: #1b263b;
+    color: #c9d1d9;
+    border: 1px solid #415a77;
+    padding: 10px 22px;
+    margin-right: 2px;
+    min-width: 100px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+QTabBar::tab:selected {
+    background: #415a77;
+    color: white;
+    border-bottom: none;
+}
+QTabBar::tab:hover:!selected {
+    background: #2d4059;
+    color: white;
+}
+
+/* GroupBox — tipis & clean */
+QGroupBox {
+    color: #778da9;
+    border: 1px solid #415a77;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 8px;
+    background: #0d1b2a;
+    color: #778da9;
+}
+
+/* Scrollbar — super minimal */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 2px;
+}
+QScrollBar::handle:vertical {
+    background: #415a77;
+    border-radius: 5px;
+    min-height: 40px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #778da9;
+}
+
+/* Progress & ComboBox */
+QProgressBar {
+    border: 1px solid #415a77;
+    background: #1b263b;
+    text-align: center;
+    color: #e0e1dd;
+    border-radius: 5px;
+}
+QProgressBar::chunk {
+    background: #0099e6;
+    border-radius: 4px;
+}
+
+QComboBox {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    padding: 8px;
+    border-radius: 5px;
+}
+QComboBox:hover {
+    border: 1px solid #778da9;
+}
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #778da9;
+}
+
+/* Tooltip & Menu */
+QToolTip, QMenu {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    border-radius: 5px;
+}
+QMenu::item:selected {
+    background: #415a77;
+    color: white;
+}
+
+/* Session Info & Output */
+QLabel#session_header {
+    font-weight: bold;
+    font-size: 14pt;
+    color: #778da9;
+    background: #1b263b;
+    padding: 10px;
+    border-bottom: 2px solid #0099e6;
+    border-radius: 5px;
+}
+
+QTextEdit#session_output, QTextEdit#console_output {
+    background: #0d1b2a;
+    color: #a3bffa;
+    border: 1px solid #415a77;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+QLineEdit#session_cmd_input {
+    background: #1b263b;
+    color: white;
+    border: 1px solid #415a77;
+    border-radius: 5px;
+    padding: 8px;
+}
+
+/* Status labels (SOC style) */
+QLabel[status="secure"]     { color: #00ff9d; background: #002f1e; border: 1px solid #00ff9d; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+QLabel[status="warning"]    { color: #ffeb3b; background: #332900; border: 1px solid #ffeb3b; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+QLabel[status="critical"]   { color: #ff3b30; background: #330000; border: 1px solid #ff3b30; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+QLabel[status="monitoring"] { color: #00d0ff; background: #001933; border: 1px solid #00d0ff; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+
+/* Menu bar — tipis & clean */
+QMenuBar {
+    background: #0d1b2a;
+    color: #e0e1dd;
+    border-bottom: 1px solid #415a77;
+}
+QMenuBar::item {
+    background: transparent;
+    padding: 6px 14px;
+    border-radius: 4px;
+}
+QMenuBar::item:selected {
+    background: #415a77;
+    color: white;
+}
+
+/* Container untuk tombol categories */
+QWidget > QHBoxLayout {
+    spacing: 3px;          /* Kurangi spacing antar tombol */
+    margin: 2px;
+}
+
+/* Tombol categories dengan width flexible */
+QPushButton[category] {
+    background: #1b263b;
+    color: #e0e1dd;
+    border: 1px solid #415a77;
+    padding: 8px 16px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 15px;
+    text-align: center;
+    min-width: 40px;       /* Width minimum yang reasonable */
+    max-width: 80px;       /* Width maksimum */
+}

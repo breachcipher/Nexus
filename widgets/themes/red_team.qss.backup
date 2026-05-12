@@ -1,0 +1,269 @@
+/* RED TEAM – CLEAN & PROFESSIONAL EDITION */
+/* Tampilan ala Cobalt Strike / modern red-team C2 */
+/* ==== MENU BAR – RED TEAM EDITION (gede & agresif) ==== */
+QMenuBar {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    /*color: #ff5252;*/
+    color: red;
+    font-family: "Terminus", "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
+    font-size: 12px;           /* sama seperti console */
+    font-weight: bold;
+    border-bottom: 1px solid #7d0101;
+    padding: 4px 0;
+}
+
+QMenuBar::item {
+    background: transparent;
+    /*color: #ff5252;*/
+    color: white;
+    padding: 8px 16px;
+    border-radius: 3px;
+    min-width: 60px;
+}
+
+QMenuBar::item:selected {
+    background: #7d0101;
+    color: #ffffff;
+}
+
+QMenuBar::item:pressed {
+    background: #c62828;
+    color: #ffffff;
+}
+
+/* Dropdown menu (File, Tools, dll) */
+QMenu {
+    background: #101010;  /* Lebih gelap dari #252525 */
+    /*color: #ff8a80;*/
+    color: #fff;
+    border: 1px solid #7d0101;
+    font-family: "Consolas", "DejaVu Sans Mono", monospace;
+    font-size: 13px;
+}
+
+QMenu::item {
+    padding: 9px 25px;
+}
+
+QMenu::item:selected {
+    background: #c62828;
+    color: #ffffff;
+}
+
+
+
+QMainWindow, QWidget {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    color: #e57373;
+    font-family: "Terminus";
+    font-size: 13px;
+}
+
+/* Main window – hitam pekat */
+QMainWindow {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    border: none;
+}
+
+/* Button – flat, merah agresif */
+QPushButton {
+    background: #1a0000;  /* Lebih gelap dari #2d0000 */
+    color: #ff5252;
+    border: 1px solid #7d0101;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    min-width: 50px;
+}
+QPushButton:hover {
+    background: #3a0000;  /* Lebih gelap dari #4d0000 */
+    border: 1px solid #c62828;
+    color: #ff8a80;
+}
+QPushButton:pressed {
+    background: #0a0000;  /* Lebih gelap dari #1a0000 */
+}
+QPushButton:disabled {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    color: #666666;
+    border: 1px solid #404040;
+}
+
+/* Danger / Run button */
+QPushButton[action="run"], QPushButton[action="danger"] {
+    background: #7d0101;
+    color: #ffffff;
+    border: 1px solid #c62828;
+}
+QPushButton[action="run"]:hover {
+    background: #a50101;
+    border: 1px solid #ff1744;
+}
+
+/* Input & TextEdit – sangat clean */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background: #101010;  /* Lebih gelap dari #252525 */
+    color: #ff5252;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 8px;
+    selection-background-color: #c62828;
+    selection-color: #ffffff;
+}
+QLineEdit:focus, QTextEdit:focus {
+    border: 1px solid #c62828;
+    background: #1a0000;  /* Lebih gelap dari #2d0000 */
+}
+
+/* Module detail – fokus & mudah dibaca */
+QTextEdit#module_detail_info {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    color: #ff8a80;
+    border: 1px solid #7d0101;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 13px;
+}
+
+/* List & Table */
+QListWidget, QTableWidget {
+    background: #101010;  /* Lebih gelap dari #252525 */
+    color: #ff5252;
+    border: 1px solid #404040;
+    alternate-background-color: #1a1a1a;  /* Lebih gelap dari #2d2d2d */
+    outline: none;
+}
+QListWidget::item, QTableWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #404040;
+}
+QListWidget::item:selected, QTableWidget::item:selected {
+    background: #7d0101;
+    color: #ffffff;
+}
+QListWidget::item:hover {
+    background: #3a0000;  /* Lebih gelap dari #4d0000 */
+    color: #ff8a80;
+}
+
+/* Tab – clean & tajam (persis Cobalt Strike style) */
+QTabWidget::pane {
+    border: 1px solid #404040;
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    border-radius: 4px;
+}
+QTabBar::tab {
+    background: #1a0000;  /* Lebih gelap dari #2d0000 */
+    color: #ff5252;
+    border: 1px solid #7d0101;
+    padding: 8px 16px;
+    margin-right: 2px;
+    min-width: 90px;
+}
+QTabBar::tab:selected {
+    background: #c62828;
+    color: #ffffff;
+    border: 1px solid #c62828;
+}
+QTabBar::tab:hover:!selected {
+    background: #3a0000;  /* Lebih gelap dari #4d0000 */
+    color: #ff8a80;
+    border: 1px solid #c62828;
+}
+
+/* GroupBox & Header */
+QGroupBox {
+    color: #ff5252;
+    border: 1px solid #7d0101;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-radius: 4px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 8px;
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    color: #ff5252;
+}
+
+/* Scrollbar */
+QScrollBar:vertical {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    width: 10px;
+}
+QScrollBar::handle:vertical {
+    background: #7d0101;
+    border-radius: 4px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #c62828;
+}
+
+/* Progress & ComboBox */
+QProgressBar {
+    border: 1px solid #7d0101;
+    background: #101010;  /* Lebih gelap dari #252525 */
+    text-align: center;
+    color: #ff5252;
+}
+QProgressBar::chunk {
+    background: #c62828;
+}
+
+QComboBox {
+    background: #101010;  /* Lebih gelap dari #252525 */
+    color: #ff5252;
+    border: 1px solid #404040;
+    padding: 6px;
+    border-radius: 4px;
+}
+QComboBox:hover {
+    border: 1px solid #c62828;
+}
+
+/* Tooltip & Menu */
+QToolTip, QMenu {
+    background: #1a0000;  /* Lebih gelap dari #2d0000 */
+    color: #ff8a80;
+    border: 1px solid #7d0101;
+}
+
+/* Session header */
+QLabel#session_header {
+    font-weight: bold;
+    font-size: 16px;
+    padding: 8px;
+    border-bottom: 2px solid #c62828;
+    color: #ffffff;
+    background: #3a0000;  /* Lebih gelap dari #4d0000 */
+    border-radius: 4px;
+}
+
+/* Session console */
+QTextEdit#session_output {
+    background: #0a0a0a;  /* Lebih gelap dari #1e1e1e */
+    color: #ff5252;
+    border: 1px solid #404040;
+    border-radius: 4px;
+}
+
+QLineEdit#session_cmd_input {
+    background: #101010;  /* Lebih gelap dari #252525 */
+    color: #ffffff;
+    border: 1px solid #7d0101;
+    border-radius: 4px;
+    padding: 6px;
+}
+
+QPushButton#session_button {
+    background: #7d0101;
+    color: #ffffff;
+    border: 1px solid #c62828;
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+QPushButton#session_button:hover {
+    background: #a50101;
+}
