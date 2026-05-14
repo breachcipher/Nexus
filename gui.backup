@@ -40,14 +40,12 @@ from core import load_banners_from_folder, get_random_banner
 #from modules.payloads.reverse.reverse_tcp import  send_command_to_session
 try:
     # Coba import dari path lama
-    import modules.payloads.reverse.reverse_tcp as _rtcp_mod
     from modules.payloads.reverse.reverse_tcp import send_command_to_session
 except ImportError:
     # Fallback ke path relatif
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    import modules.payloads.reverse.reverse_tcp as _rtcp_mod
     from modules.payloads.reverse.reverse_tcp import send_command_to_session
 # Import dari folder widgets/
 from widgets.notif import CyberpunkToast
@@ -82,9 +80,6 @@ class GUIConsole:
 
 # === MAIN GUI COMPLETE ===
 class LazyFrameworkGUI(QMainWindow):
-    session_output_signal = pyqtSignal(str, str)
-    console_output_signal = pyqtSignal(str)
-
     def __init__(self):
         super().__init__()
         self.show_splash_screen()
@@ -130,9 +125,6 @@ class LazyFrameworkGUI(QMainWindow):
         self.theme_manager = ThemeManager(QApplication.instance(), self)
         self.ensure_monospace_fonts()
         self.init_ui()
-        # Connect thread-safe signals SETELAH init_ui() agar widget sudah siap
-        self.session_output_signal.connect(self.append_session_output)
-        self.console_output_signal.connect(self.append_output)
         #self.start_global_capture()
 
         import glob
@@ -148,7 +140,7 @@ class LazyFrameworkGUI(QMainWindow):
         QTimer.singleShot(2000, self.start_tor_auto_rotate)
         self.last_tor_ip = None
         self.active_module = ""
-        
+        self.setup_matrix_rain()
         self.update_session_info()
 
         
@@ -194,7 +186,7 @@ class LazyFrameworkGUI(QMainWindow):
         self.run_btn.setText("START")
         self.run_btn.setProperty("action", "run")
 
-       
+        self.stop_matrix_rain()
 
         self.append_output("[green]✓ Stop requested[/green]")
 
@@ -218,7 +210,113 @@ class LazyFrameworkGUI(QMainWindow):
         elif action == "stop":
             self.stop_module()
 
-          
+           # ===================== MATRIX RAIN – VERSI STABIL 100% =====================
+    def setup_matrix_rain(self):
+        # Overlay sebagai child dari console_output
+        self.matrix_overlay = QWidget(self.console_output)
+        self.matrix_overlay.setGeometry(self.console_output.rect())
+        self.matrix_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.matrix_overlay.setStyleSheet("background: transparent;")
+        self.matrix_overlay.hide()
+
+        # Data untuk matrix rain
+        self.matrix_overlay.columns = []
+        
+        # Timer untuk animasi - connect ke method painting yang benar
+        self.matrix_timer = QTimer(self)
+        self.matrix_timer.timeout.connect(self.matrix_overlay.update)
+        
+        # Pasang event filter untuk handle resize
+        self.matrix_overlay.installEventFilter(self)
+        
+        # Inisialisasi kolom
+        self.restart_matrix_columns()
+
+    def restart_matrix_columns(self):
+        """Initialize atau reset kolom matrix rain"""
+        if not hasattr(self.matrix_overlay, 'columns'):
+            self.matrix_overlay.columns = []
+        
+        w = self.console_output.width()
+        h = self.console_output.height()
+        cols = max(15, w // 12)
+        
+        self.matrix_overlay.columns = []
+        for i in range(cols):
+            self.matrix_overlay.columns.append({
+                'x': i * 12 + random.randint(-4, 4),
+                'y': random.randint(-1000, 0),
+                'speed': random.randint(4, 11),
+                'length': random.randint(10, 25)
+            })
+
+    def matrix_paint_event(self, event):
+        """Method painting khusus untuk matrix overlay"""
+        if not hasattr(self, 'matrix_overlay') or not self.matrix_overlay.isVisible():
+            return
+            
+        painter = QPainter(self.matrix_overlay)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+
+        # Semi-transparent black background untuk trail effect
+        painter.fillRect(self.matrix_overlay.rect(), QColor(0, 0, 0, 6))
+
+        font = QFont("DejaVu Sans Mono", 11, QFont.Weight.Bold)
+        painter.setFont(font)
+
+        chars = "0123456789ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝΣΨΩΔΘΛΞΠ"
+
+        for col in self.matrix_overlay.columns:
+            col['y'] += col['speed']
+
+            # Gambar karakter dengan efek trail
+            for i in range(col['length']):
+                py = col['y'] - i * 20
+                if py < -50 or py > self.matrix_overlay.height() + 50:
+                    continue
+                    
+                alpha = max(30, 255 - i * 11)
+                if i == 0:
+                    painter.setPen(QColor(200, 255, 240, 255))  # kepala putih
+                else:
+                    painter.setPen(QColor(0, 255, 140, alpha))
+                    
+                painter.drawText(int(col['x']), int(py), random.choice(chars))
+
+            # Reset kolom jika sudah keluar layar
+            if col['y'] > self.matrix_overlay.height() + 400:
+                col['y'] = random.randint(-800, -100)
+
+        painter.end()
+
+    def start_matrix_rain(self):
+        """Start matrix rain animation"""
+        if not hasattr(self, "matrix_overlay"):
+            self.setup_matrix_rain()
+
+        # Pastikan overlay diatur dengan benar
+        self.matrix_overlay.setGeometry(self.console_output.rect())
+        self.matrix_overlay.raise_()
+        
+        # Connect paint event
+        self.matrix_overlay.paintEvent = lambda e: self.matrix_paint_event(e)
+        
+        self.matrix_overlay.show()
+        self.matrix_timer.start(50)  # 20 fps
+
+    def stop_matrix_rain(self):
+        """Stop matrix rain animation"""
+        if hasattr(self, 'matrix_timer'):
+            self.matrix_timer.stop()
+        if hasattr(self, 'matrix_overlay'):
+            self.matrix_overlay.hide()
+
+    def eventFilter(self, obj, event):
+        """Handle events untuk matrix overlay"""
+        if obj == self.matrix_overlay and event.type() == QEvent.Type.Resize:
+            self.matrix_overlay.setGeometry(self.console_output.rect())
+            self.restart_matrix_columns()
+        return super().eventFilter(obj, event)
 
 
     
@@ -260,8 +358,7 @@ class LazyFrameworkGUI(QMainWindow):
             self.session_output.setFont(base_font)
             
             # Session Info - HANYA FONT
-            if hasattr(self, 'session_info'):
-                self.session_info.setFont(base_font)
+            self.session_info.setFont(base_font)
             
             # Module Info (sidebar) - HANYA FONT
             self.module_info.setFont(QFont(available_font, 9))
@@ -644,60 +741,6 @@ class LazyFrameworkGUI(QMainWindow):
         layout = QVBoxLayout(main_widget)
         theme_switcher = self.theme_manager.create_theme_switcher()
         layout.addWidget(theme_switcher)
-        pty_toolbar = QToolBar("PTY Tools")
-        pty_toolbar.setIconSize(QSize(24, 24))
-        pty_toolbar.setStyleSheet("""
-            QToolBar {
-                background: #1e1e1e;
-                border: 1px solid #333;
-                border-radius: 5px;
-                padding: 3px;
-                margin: 2px;
-            }
-            QToolButton {
-                background: #2d2d2d;
-                color: #50fa7b;
-                border: 1px solid #50fa7b;
-                border-radius: 4px;
-                padding: 5px 10px;
-                margin: 2px;
-                font-weight: bold;
-            }
-            QToolButton:hover {
-                background: #50fa7b;
-                color: #1e1e1e;
-            }
-        """)
-        
-        # Tombol-tombol PTY
-        nano_btn = QAction("📝 Nano", self)
-        nano_btn.triggered.connect(self.open_file_with_nano)
-        pty_toolbar.addAction(nano_btn)
-        
-        vim_btn = QAction("✍️ Vim", self)
-        vim_btn.triggered.connect(lambda: self.pty_run_app('vim'))
-        pty_toolbar.addAction(vim_btn)
-        
-        htop_btn = QAction("📊 Htop", self)
-        htop_btn.triggered.connect(self.run_htop)
-        pty_toolbar.addAction(htop_btn)
-        
-        tmux_btn = QAction("🖥️ Tmux", self)
-        tmux_btn.triggered.connect(self.run_tmux)
-        pty_toolbar.addAction(tmux_btn)
-        
-        mc_btn = QAction("📁 MC", self)
-        mc_btn.triggered.connect(self.run_mc)
-        pty_toolbar.addAction(mc_btn)
-        
-        pty_toolbar.addSeparator()
-        
-        # PTY Spawn manual (full bash)
-        pty_spawn_btn = QAction("🐚 Spawn PTY", self)
-        pty_spawn_btn.triggered.connect(self.pty_spawn_bash)   # ← ini kita tambahkan
-        pty_toolbar.addAction(pty_spawn_btn)
-        
-        layout.addWidget(pty_toolbar)
         # Tab widget for different views
         self.tabs = QTabWidget()
 
@@ -787,7 +830,6 @@ class LazyFrameworkGUI(QMainWindow):
 
         # Tambah Tab
         self.tabs.addTab(self.session_tab, "Sessions")
-        
                 # === AI ASSISTANT TAB ===
         self.ai_tab = AIAssistantWidget(framework=self.framework)
         self.tabs.addTab(self.ai_tab, "🤖 AI Assistant")
@@ -826,130 +868,6 @@ class LazyFrameworkGUI(QMainWindow):
 
         return main_widget
 
-    def pty_spawn_bash(self):
-        """Spawn full interactive bash shell"""
-        self.pty_run_app('bash')
-
-    def pty_run_app(self, app_name, filename=None):
-        """Run interactive PTY application (nano, vim, htop, tmux, mc, bash, etc.)
-        Versi lengkap dengan multiple fallback"""
-        
-        if not self.selected_session_id:
-            self.append_output("[red]❌ Pilih session terlebih dahulu![/]")
-            return
-
-        session_id = self.selected_session_id
-        
-        # Bangun command
-        if filename:
-            target_cmd = f"{app_name} {filename}"
-        else:
-            target_cmd = app_name
-
-        self.append_output(f"[yellow][*] Spawning {app_name} in PTY...[/yellow]")
-        self.append_output(f"[dim]Command: {target_cmd}[/]")
-
-        try:
-            from modules.payloads.reverse.reverse_tcp import get_session, send_command_to_session
-
-            session = get_session(session_id)
-            success = False
-
-            # METODE 1: Gunakan method dari session class (paling baik)
-            if session and hasattr(session, 'spawn_pty_and_run'):
-                try:
-                    result = session.spawn_pty_and_run(target_cmd)
-                    if result:
-                        self.append_output(f"[green]{result}[/]")
-                        success = True
-                except Exception as e:
-                    self.append_output(f"[yellow]spawn_pty_and_run error: {e}[/]")
-
-            # METODE 2: Fallback PTY python -c
-            if not success:
-                self.append_output("[yellow][*] Menggunakan fallback PTY spawn...[/yellow]")
-                
-                pty_cmd = f'''python3 -c '
-    import pty, os, subprocess, time
-    os.environ["TERM"] = "xterm-256color"
-    os.environ["LANG"] = "en_US.UTF-8"
-    try:
-        pty.spawn(["/bin/bash", "-c", "{target_cmd}"])
-    except:
-        try:
-            pty.spawn(["/bin/sh", "-c", "{target_cmd}"])
-        except:
-            try:
-                master, slave = os.openpty()
-                proc = subprocess.Popen(["/bin/bash", "-c", "{target_cmd}"], 
-                                    stdin=slave, stdout=slave, stderr=slave, 
-                                    preexec_fn=os.setsid)
-                os.close(slave)
-                time.sleep(1)
-            except:
-                os.system("{target_cmd}")
-    ' 2>/dev/null &'''
-
-                success = send_command_to_session(session_id, pty_cmd)
-
-            # METODE 3: Emergency fallback
-            if not success:
-                self.append_output("[yellow][*] Emergency fallback...[/yellow]")
-                emergency = f"nohup {target_cmd} > /tmp/{app_name}.log 2>&1 &"
-                send_command_to_session(session_id, emergency)
-
-            if success:
-                self.append_output(f"[bold green]✓ {app_name} berhasil dijalankan di PTY![/]")
-                self.append_output("[cyan]→ Pindah ke tab **Sessions** untuk berinteraksi[/]")
-                
-                # Auto switch ke tab Sessions
-                try:
-                    idx = self.tabs.indexOf(self.session_tab)
-                    if idx >= 0:
-                        self.tabs.setCurrentIndex(idx)
-                    self.session_cmd_input.setFocus()
-                except:
-                    pass
-            else:
-                self.append_output("[red]❌ Gagal spawn PTY[/red]")
-
-        except Exception as e:
-            self.append_output(f"[red]PTY Error: {e}[/]")
-            # Ultimate fallback
-            try:
-                from modules.payloads.reverse.reverse_tcp import send_command_to_session
-                fallback = f"python3 -c 'import pty; pty.spawn([\"/bin/bash\", \"-c\", \"{target_cmd}\"])' 2>/dev/null &"
-                send_command_to_session(session_id, fallback)
-            except:
-                pass
-
-    def open_file_with_nano(self):
-        """Open file dialog dan edit dengan nano"""
-        if not self.selected_session_id:
-            self.append_output("[red]❌ Pilih session dulu[/red]")
-            return
-        
-        file_path, ok = QInputDialog.getText(
-            self, "Edit File with Nano", 
-            "Enter file path to edit:", 
-            QLineEdit.EchoMode.Normal,
-            "api-green.txt"
-        )
-        
-        if ok and file_path:
-            self.pty_run_app('nano', file_path)
-
-    def run_htop(self):
-        """Run htop di session"""
-        self.pty_run_app('htop')
-
-    def run_tmux(self):
-        """Run tmux di session"""
-        self.pty_run_app('tmux')
-
-    def run_mc(self):
-        """Run midnight commander di session"""
-        self.pty_run_app('mc')
     
     def interact_with_session(self, session_id):
         """Handle session interaction from network map click"""
@@ -1880,11 +1798,8 @@ class LazyFrameworkGUI(QMainWindow):
         if not hasattr(self, 'console_output') or self.console_output is None:
             return
 
-        
-
         raw_text = text  # Simpan raw untuk parsing session
 
-        
         # === 1. DETEKSI TABEL (box-drawing characters) ===
         table_chars = ['─', '│', '┌', '┐', '└', '┘', '┬', '┴', '├', '┤', '┼']
         is_table = any(char in text for char in table_chars)
@@ -1935,14 +1850,9 @@ class LazyFrameworkGUI(QMainWindow):
             # Gunakan Matrix-style message untuk session detection
             self.append_output("[matrix-cyan]🔄 MATRIX SESSION DETECTED! Switching to control panel...[/]")
 
-
-    
-
     def rich_to_html_with_matrix(self, text):
         """Convert rich text to HTML dengan Matrix theme color coding"""
         import re
-
-        
 
         # Matrix Color Mapping - lebih intens dan glowing
         matrix_color_map = {
@@ -2400,84 +2310,6 @@ class LazyFrameworkGUI(QMainWindow):
         except Exception as e:
             self.append_output(f"[red]Session UI Error: {e}[/]")
 
-
-    def sync_sessions_from_reverse_tcp(self):
-        """Sync GUI sessions from reverse_tcp module - FIXED VERSION"""
-        try:
-            # Akses SESSIONS dari instance module yang benar-benar running
-            if (self.framework.loaded_module and 
-                hasattr(self.framework.loaded_module, 'module') and
-                hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                _active_mod = self.framework.loaded_module.module
-                SESSIONS = _active_mod.SESSIONS
-                SESSIONS_LOCK = _active_mod.SESSIONS_LOCK
-            else:
-                SESSIONS = _rtcp_mod.SESSIONS
-                SESSIONS_LOCK = _rtcp_mod.SESSIONS_LOCK
-            
-            self.append_output("[yellow]Syncing sessions from reverse_tcp...[/]")
-            
-            with SESSIONS_LOCK:
-                self.append_output(f"[dim]ReverseTCP has {len(SESSIONS)} sessions[/]")
-                
-                for sess_id, rev_sess in SESSIONS.items():
-                    # Get socket from reverse_tcp session object
-                    sock = None
-                    if hasattr(rev_sess, 'socket'):
-                        sock = rev_sess.socket
-                    elif isinstance(rev_sess, dict) and 'socket' in rev_sess:
-                        sock = rev_sess['socket']
-                    
-                    if sess_id not in self.sessions:
-                        # Create new GUI session
-                        self.sessions[sess_id] = {
-                            'id': sess_id,
-                            'type': getattr(rev_sess, 'type', 'reverse_tcp'),
-                            'ip': getattr(rev_sess, 'rhost', 'unknown'),
-                            'port': getattr(rev_sess, 'rport', 'unknown'),
-                            'lhost': getattr(rev_sess, 'lhost', 'unknown'),
-                            'lport': getattr(rev_sess, 'lport', 'unknown'),
-                            'os': getattr(rev_sess, 'os', 'unknown'),
-                            'output': f"[*] Session {sess_id} synced from reverse_tcp\n",
-                            'status': getattr(rev_sess, 'status', 'alive'),
-                            'created': getattr(rev_sess, 'created', time.strftime("%H:%M:%S")),
-                            'socket': sock,
-                            'handler': rev_sess
-                        }
-                        self.append_output(f"[green]✓ Added session {sess_id}[/]")
-                    else:
-                        # Update existing session
-                        self.sessions[sess_id]['socket'] = sock
-                        self.sessions[sess_id]['handler'] = rev_sess
-                        self.sessions[sess_id]['status'] = getattr(rev_sess, 'status', 'alive')
-                        self.sessions[sess_id]['os'] = getattr(rev_sess, 'os', 'unknown')
-                        self.append_output(f"[dim]Updated session {sess_id}[/]")
-            
-            self.update_sessions_ui()
-            
-            if len(SESSIONS) > 0:
-                # Auto-select first session
-                first_sess = list(SESSIONS.keys())[0]
-                self.selected_session_id = first_sess
-                self.active_session_id = first_sess
-                self.append_output(f"[green]✓ Auto-selected session: {first_sess}[/]")
-                self.tabs.setCurrentIndex(4)  # Switch to Sessions tab
-                
-                # Test socket
-                if first_sess in self.sessions and self.sessions[first_sess].get('socket'):
-                    self.append_output("[green]✓ Socket is available for command sending[/]")
-                else:
-                    self.append_output("[yellow]⚠️ Socket not available - commands may fail[/]")
-            else:
-                self.append_output("[yellow]No sessions found in reverse_tcp[/]")
-            
-            self.append_output(f"[green]✓ Sync complete: {len(self.sessions)} total sessions[/]")
-            
-        except Exception as e:
-            self.append_output(f"[red]Sync error: {e}[/]")
-            import traceback
-            self.append_output(f"[red]{traceback.format_exc()}[/]")
-
     def append_session_output(self, session_id, text):
         """Append output to specific session - CLEAN VERSION"""
         try:
@@ -2491,13 +2323,20 @@ class LazyFrameworkGUI(QMainWindow):
                 import re
                 clean_text = text
                 
-                # Hapus semua jenis ANSI sequences (comprehensive)
-                clean_text = re.sub(r'\x1b\][^\x07]*\x07', '', clean_text)        # OSC
-                clean_text = re.sub(r'\x1b\[[\x20-\x3f]*[\x40-\x7e]', '', clean_text)  # CSI
-                clean_text = re.sub(r'\x1b[=><]', '', clean_text)                    # ESC simple
-                clean_text = clean_text.replace('\r\n', '\n').replace('\r', '\n')    # fix \r
-                # Sisa-sisa bracketed paste
-                clean_text = re.sub(r'\[\??[0-9]+[a-zA-Z]', '', clean_text)
+                # Hapus semua jenis ANSI sequences
+                ansi_patterns = [
+                    r'\x1b\[[0-9;]*[a-zA-Z]',  # Standard ANSI
+                    r'\x1b\][0-9][;?].*?\x07', # OSC sequences  
+                    r'\x1b[=><?]',             # ESC sequences
+                    r'\x1b%',                  # ESC %
+                ]
+                
+                for pattern in ansi_patterns:
+                    clean_text = re.sub(pattern, '', clean_text)
+                
+                # Hapus manual bracketed paste remnants
+                clean_text = clean_text.replace('?2004h', '').replace('?2004l', '')
+                clean_text = clean_text.replace('[?2004h', '').replace('[?2004l', '')
                 
                 clean_text = clean_text.strip()
                 
@@ -2555,16 +2394,7 @@ class LazyFrameworkGUI(QMainWindow):
         self.append_output("[yellow]=== SESSION STORAGE DEBUG ===[/]")
         
         try:
-            # Akses SESSIONS dari instance module yang benar-benar running
-            if (self.framework.loaded_module and 
-                hasattr(self.framework.loaded_module, 'module') and
-                hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                _active_mod = self.framework.loaded_module.module
-                SESSIONS = _active_mod.SESSIONS
-                SESSIONS_LOCK = _active_mod.SESSIONS_LOCK
-            else:
-                SESSIONS = _rtcp_mod.SESSIONS
-                SESSIONS_LOCK = _rtcp_mod.SESSIONS_LOCK
+            from modules.payloads.reverse.reverse_tcp import SESSIONS, SESSIONS_LOCK
             
             # Check SESSIONS in reverse_tcp.py
             with SESSIONS_LOCK:
@@ -2669,12 +2499,7 @@ class LazyFrameworkGUI(QMainWindow):
 
     
     def send_session_command(self):
-        """Send command to selected session - FIXED FOR GUI"""
-        # First, sync sessions if needed
-        if not self.sessions:
-            self.append_output("[yellow]No sessions, trying to sync...[/]")
-            self.sync_sessions_from_reverse_tcp()
-            
+        """Send command to selected session - DUAL APPROACH"""
         if not self.sessions:
             self.append_output("[red]❌ No sessions available![/]")
             return
@@ -2698,100 +2523,46 @@ class LazyFrameworkGUI(QMainWindow):
         
         success = False
         
-        # === METHOD 1: Try direct socket from GUI session ===
-        if session_id in self.sessions:
-            session = self.sessions[session_id]
-            sock = session.get('socket')
+        # METHOD 1: Try normal reverse_tcp approach
+        try:
+            from modules.payloads.reverse.reverse_tcp import send_command_to_session
+            self.append_output("[yellow]Trying Method 1: Direct reverse_tcp...[/]")
+            success = send_command_to_session(session_id, cmd)
             
-            if sock:
-                try:
-                    import select
-                    # Check if socket is writable
-                    ready = select.select([], [sock], [], 0.5)
-                    if ready[1]:
-                        sock.send((cmd + "\n").encode())
-                        success = True
-                        self.append_output("[green]✓ Command sent via GUI socket[/]")
-                        
-                        # Read response in background
-                        def read_response():
-                            try:
-                                time.sleep(0.3)
-                                ready_read = select.select([sock], [], [], 5)
-                                if ready_read[0]:
-                                    data = sock.recv(8192).decode('utf-8', errors='ignore')
-                                    if data:
-                                        self.append_session_output(session_id, data)
-                                else:
-                                    self.append_output("[dim]No immediate response (command may be running)[/]")
-                            except Exception as e:
-                                self.append_output(f"[red]Response error: {e}[/]")
-                        
-                        threading.Thread(target=read_response, daemon=True).start()
-                    else:
-                        self.append_output("[yellow]Socket not writable, trying alternate method[/]")
-                except Exception as e:
-                    self.append_output(f"[red]Socket send error: {e}[/]")
+            if success:
+                self.append_output("[green]✓ Method 1: Command sent via reverse_tcp[/]")
+            else:
+                self.append_output("[yellow]❌ Method 1 failed, trying Method 2...[/]")
+        except Exception as e:
+            self.append_output(f"[yellow]Method 1 error: {e}[/]")
         
-        # === METHOD 2: Try handler method from reverse_tcp ===
-        if not success and session_id in self.sessions:
-            session = self.sessions[session_id]
-            handler = session.get('handler')
-            
-            if handler and hasattr(handler, 'send_command'):
-                try:
-                    result = handler.send_command(cmd)
-                    success = True
-                    self.append_output("[green]✓ Command sent via handler[/]")
-                    if result:
-                        self.append_session_output(session_id, result)
-                except Exception as e:
-                    self.append_output(f"[yellow]Handler error: {e}[/]")
-        
-        # === METHOD 3: Ambil session object dari loaded_module, send + baca response ===
+        # METHOD 2: Try GUI session approach
         if not success:
             try:
-                _active_sess_obj = None
-                if (self.framework.loaded_module and
-                    hasattr(self.framework.loaded_module, 'module') and
-                    hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                    _SESS = self.framework.loaded_module.module.SESSIONS
-                    _active_sess_obj = _SESS.get(session_id)
-
-                if _active_sess_obj and hasattr(_active_sess_obj, 'send_command'):
-                    # Jalankan di thread supaya GUI tidak freeze
-                    def _do_send(sess_obj, command, sid):
-                        try:
-                            result = sess_obj.send_command(command)
-                            if result:
-                                self.session_output_signal.emit(sid, result)
-                        except Exception as ex:
-                            self.console_output_signal.emit(f"[red]Response read error: {ex}[/]")
-                    threading.Thread(target=_do_send, args=(_active_sess_obj, cmd, session_id), daemon=True).start()
-                    success = True
-                    self.append_output("[green]✓ Command sent via reverse_tcp function[/]")
+                from modules.payloads.reverse.reverse_tcp import send_command_to_session_with_gui
+                self.append_output("[yellow]Trying Method 2: GUI session bridge...[/]")
+                success = send_command_to_session_with_gui(session_id, cmd, self.framework.session)
+                
+                if success:
+                    self.append_output("[green]✓ Method 2: Command sent via GUI bridge[/]")
                 else:
-                    # Fallback: hanya kirim tanpa baca response
-                    if (self.framework.loaded_module and
-                        hasattr(self.framework.loaded_module, 'module') and
-                        hasattr(self.framework.loaded_module.module, 'send_command_to_session')):
-                        _fn = self.framework.loaded_module.module.send_command_to_session
-                    else:
-                        _fn = _rtcp_mod.send_command_to_session
-                    success = _fn(session_id, cmd)
-                    if success:
-                        self.append_output("[green]✓ Command sent (no response capture)[/]")
+                    self.append_output("[red]❌ Both methods failed[/]")
             except Exception as e:
-                self.append_output(f"[yellow]reverse_tcp function error: {e}[/]")
+                self.append_output(f"[red]Method 2 error: {e}[/]")
         
-        if not success:
-            self.append_output("[red]❌ Failed to send command[/]")
-            self.append_output("[yellow]Debug: Run sync_sessions_from_reverse_tcp() first[/]")
-            # Offer to resync
-            self.append_output("[dim]Try: self.sync_sessions_from_reverse_tcp()[/]")
+        # METHOD 3: Direct socket access from GUI sessions
+        if not success and session_id in self.sessions:
+            self.append_output("[yellow]Trying Method 3: Direct socket access...[/]")
+            success = self.send_command_direct_socket(session_id, cmd)
+        
+        if success:
+            self.append_output("[dim]Waiting for response from target...[/]")
+        else:
+            self.append_output("[red]❌ All sending methods failed[/]")
+            self.append_output("[yellow]Session mungkin terputus atau tidak sinkron[/]")
         
         self.session_cmd_input.clear()
-        
+    
 
     def send_command_direct_socket(self, session_id, command):
         """Method 3: Send command directly via socket in GUI session"""
@@ -2826,16 +2597,7 @@ class LazyFrameworkGUI(QMainWindow):
         self.append_output("[yellow]=== SESSION SYNC VERIFICATION ===[/]")
         
         try:
-            # Akses SESSIONS dari instance module yang benar-benar running
-            if (self.framework.loaded_module and 
-                hasattr(self.framework.loaded_module, 'module') and
-                hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                _active_mod = self.framework.loaded_module.module
-                SESSIONS = _active_mod.SESSIONS
-                SESSIONS_LOCK = _active_mod.SESSIONS_LOCK
-            else:
-                SESSIONS = _rtcp_mod.SESSIONS
-                SESSIONS_LOCK = _rtcp_mod.SESSIONS_LOCK
+            from modules.payloads.reverse.reverse_tcp import SESSIONS, SESSIONS_LOCK
             
             with SESSIONS_LOCK:
                 reverse_sessions = set(SESSIONS.keys())
@@ -2879,16 +2641,7 @@ class LazyFrameworkGUI(QMainWindow):
         self.append_output("[yellow]=== FORCE SESSION SYNC ===[/]")
         
         try:
-            # Akses SESSIONS dari instance module yang benar-benar running
-            if (self.framework.loaded_module and 
-                hasattr(self.framework.loaded_module, 'module') and
-                hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                _active_mod = self.framework.loaded_module.module
-                SESSIONS = _active_mod.SESSIONS
-                SESSIONS_LOCK = _active_mod.SESSIONS_LOCK
-            else:
-                SESSIONS = _rtcp_mod.SESSIONS
-                SESSIONS_LOCK = _rtcp_mod.SESSIONS_LOCK
+            from modules.payloads.reverse.reverse_tcp import SESSIONS, SESSIONS_LOCK
             
             with SESSIONS_LOCK:
                 reverse_sessions = SESSIONS.copy()
@@ -2956,16 +2709,7 @@ class LazyFrameworkGUI(QMainWindow):
         
         # Check di reverse_tcp sessions
         try:
-            # Akses SESSIONS dari instance module yang benar-benar running
-            if (self.framework.loaded_module and 
-                hasattr(self.framework.loaded_module, 'module') and
-                hasattr(self.framework.loaded_module.module, 'SESSIONS')):
-                _active_mod = self.framework.loaded_module.module
-                SESSIONS = _active_mod.SESSIONS
-                SESSIONS_LOCK = _active_mod.SESSIONS_LOCK
-            else:
-                SESSIONS = _rtcp_mod.SESSIONS
-                SESSIONS_LOCK = _rtcp_mod.SESSIONS_LOCK
+            from modules.payloads.reverse.reverse_tcp import SESSIONS, SESSIONS_LOCK
             with SESSIONS_LOCK:
                 if session_id in SESSIONS:
                     reverse_session = SESSIONS[session_id]
@@ -3783,7 +3527,7 @@ class LazyFrameworkGUI(QMainWindow):
             self.framework.session['gui_instance'] = self
 
         # UI saat module berjalan
-        
+        self.start_matrix_rain()
         self.run_btn.setEnabled(True)          # harus TRUE supaya STOP bisa diklik
         self.run_btn.setText("STOP")
         self.run_btn.setProperty("action", "stop")
@@ -3798,7 +3542,7 @@ class LazyFrameworkGUI(QMainWindow):
 
     def on_module_finished(self):
         """Handle module completion"""
-        
+        self.stop_matrix_rain()
         
         self.update_session_info()
         self.run_btn.setEnabled(True)
@@ -3875,8 +3619,6 @@ class LazyFrameworkGUI(QMainWindow):
             self.append_output(f"Font changed to {font.family()} ({font.pointSize()}pt)")
 
     def update_session_info(self):
-        if not hasattr(self, 'session_info'):
-            return
         import socket, platform
         import requests
         from datetime import datetime

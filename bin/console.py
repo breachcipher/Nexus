@@ -4,6 +4,8 @@
 import os, sys, shlex, importlib.util, re, platform, time, random, itertools, threading, shutil, textwrap
 import socket
 import select
+import json
+import requests
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
@@ -34,6 +36,336 @@ BASE_DIR = Path(__file__).parent.parent
 MODULE_DIR, BANNER_DIR = BASE_DIR / "modules", BASE_DIR / "banner"
 METADATA_READ_LINES = 120
 
+# ─── Smart Filter (sama dengan ai_assistant.py) ────────────────────────────────
+_INJECT_SCORE_THRESHOLD = 2
+_INJECT_MIN_LEN         = 30
+
+_INJECT_PATTERNS = [
+    (re.compile(r'\b(\d{1,5})/tcp\b',                                    re.I), 3),
+    (re.compile(r'\b(\d{1,5})/udp\b',                                    re.I), 3),
+    (re.compile(r'\bopen\b',                                              re.I), 1),
+    (re.compile(r'\bnmap\b',                                              re.I), 2),
+    (re.compile(r'\b(apache|nginx|iis|tomcat|openssh|vsftpd|samba)\b',   re.I), 3),
+    (re.compile(r'\b(http|https|ftp|ssh|rdp|smb|ldap|mysql|mssql|redis)\b', re.I), 2),
+    (re.compile(r'\bCVE-\d{4}-\d+\b',                                    re.I), 5),
+    (re.compile(r'\b(vuln|exploit|vulnerability|rce|lfi|sqli|xss)\b',    re.I), 4),
+    (re.compile(r'\b(gobuster|nikto|enum4linux|smbmap|hydra|sqlmap|ffuf)\b', re.I), 3),
+    (re.compile(r'\b(found|discovered|detected)\b',                       re.I), 2),
+    (re.compile(r'\bStatus:\s*\d{3}\b',                                   re.I), 2),
+    (re.compile(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b',              re.I), 2),
+    (re.compile(r'\b(username|password|hash|ntlm|kerberos|token)\b',     re.I), 3),
+    (re.compile(r'\b(shell|session|meterpreter|reverse.?shell)\b',       re.I), 4),
+    (re.compile(r'\b(windows|linux|ubuntu|debian|centos|kali)\b',        re.I), 2),
+    (re.compile(r'\b(kernel|uname|systeminfo)\b',                        re.I), 2),
+    (re.compile(r'\b(error|warning|failed|exception)\b',                 re.I), 1),
+]
+
+_NOISE_PATTERNS = [
+    re.compile(r'^\s*$'),
+    re.compile(r'^starting\s+\w+\s+v[\d.]+',  re.I),
+    re.compile(r'^#'),
+    re.compile(r'^\[[\*\+\-!]\]\s*$'),
+]
+
+def _smart_filter(text: str) -> str:
+    if not text or len(text.strip()) < _INJECT_MIN_LEN:
+        return ""
+    lines = []
+    for line in text.splitlines():
+        if any(p.match(line) for p in _NOISE_PATTERNS):
+            continue
+        score = sum(w for p, w in _INJECT_PATTERNS if p.search(line))
+        if score >= _INJECT_SCORE_THRESHOLD:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+# ─── CLI AI Assistant ──────────────────────────────────────────────────────────
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+CLI_SYSTEM_PROMPT = """You are LazyAI, a penetration testing assistant embedded in the Lazy Framework CLI.
+
+Your role:
+- Analyze scan and enumeration output, explain findings clearly
+- Suggest next enumeration steps based on discovered information
+- Explain CVEs, vulnerabilities, and attack vectors
+- Interpret tool output: nmap, smbmap, enum4linux, nikto, gobuster, etc.
+- Recommend which Nexus modules to use next
+
+Rules:
+- Be concise and actionable
+- Use plain text without markdown headers or bullet symbols
+- Always remind that any action requires explicit written authorization
+"""
+
+class CLIAssistant:
+    """
+    AI Assistant untuk mode CLI.
+    Pakai: ai <pertanyaan>   → tanya langsung
+           ai ctx            → lihat context yang terkumpul
+           ai clear          → hapus context
+           ai key <sk-or-..> → set API key
+           ai model <name>   → ganti model
+    """
+
+    DEFAULT_MODEL = "meta-llama/llama-3.3-8b-instruct:free"
+
+    def __init__(self):
+        self._context_lines: list[str] = []   # baris relevan dari output modul
+        self._history:       list[dict] = []   # chat history
+        self._api_key:       str        = os.environ.get("OPENROUTER_API_KEY", "")
+        self._model:         str        = self.DEFAULT_MODEL
+        self._smart:         bool       = True  # smart filter ON by default
+        self._context_max:   int        = 8000  # karakter maks context
+
+    # ── Public ──────────────────────────────────────────────────────────────────
+
+    # Regex strip ANSI escape codes
+    _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]|\x1b\[[0-9]*[A-Z]')
+
+    def inject(self, text: str):
+        """Dipanggil setiap ada output dari modul/tool."""
+        # Bersihkan ANSI escape codes dulu supaya context terbaca AI
+        text = self._ANSI_RE.sub('', text)
+
+        if self._smart:
+            filtered = _smart_filter(text)
+            if not filtered:
+                return
+            new_lines = filtered.splitlines()
+        else:
+            new_lines = [l for l in text.splitlines() if l.strip()]
+
+        # Deduplikasi — normalisasi whitespace lalu cek apakah sudah ada di context
+        existing = set(
+            re.sub(r'\s+', ' ', l).strip()
+            for l in self._context_lines
+        )
+        deduped = []
+        for line in new_lines:
+            normalized = re.sub(r'\s+', ' ', line).strip()
+            if normalized and normalized not in existing:
+                deduped.append(line)
+                existing.add(normalized)
+
+        if not deduped:
+            return
+
+        self._context_lines.extend(deduped)
+
+        # Trim supaya tidak melebihi batas karakter
+        joined = "\n".join(self._context_lines)
+        if len(joined) > self._context_max:
+            trimmed = joined[-self._context_max:]
+            self._context_lines = trimmed.splitlines()
+
+    # Quick prompts — shortcut ke pertanyaan yang paling sering dipakai saat pentest
+    QUICK_PROMPTS = {
+        "next":    "Berdasarkan output di context, rekomendasikan langkah enumerasi atau eksploitasi selanjutnya secara spesifik.",
+        "vulns":   "Identifikasi semua potensi vulnerability dari output ini. Sebutkan service, versi, dan alasan kenapa rentan.",
+        "explain": "Jelaskan temuan dari output ini dengan bahasa sederhana. Apa artinya bagi keamanan target?",
+        "modules": "Modul Lazy Framework mana yang paling cocok digunakan selanjutnya berdasarkan output ini? Jelaskan alasannya.",
+        "cve":     "Cek apakah ada CVE yang relevan dengan service dan versi yang ditemukan di output. Sebutkan CVE ID dan dampaknya.",
+        "summary": "Buat ringkasan singkat: port yang terbuka, service yang berjalan, dan OS target berdasarkan output ini.",
+        "privesc": "Dari output ini, apakah ada indikasi potensi privilege escalation? Sebutkan vektor yang mungkin.",
+        "creds":   "Apakah ada credential, hash, token, atau informasi autentikasi yang bocor dalam output ini?",
+        "os":      "Identifikasi OS, versi kernel, dan arsitektur target dari output ini. Seberapa yakin kamu?",
+        "report":  "Buat draft laporan singkat (temuan, risiko, rekomendasi) berdasarkan semua output yang ada di context.",
+    }
+
+    def handle(self, args: list[str]) -> bool:
+        """
+        Handle perintah 'ai ...' dari REPL.
+        Return True jika ditangani, False jika syntax salah.
+        """
+        if not args:
+            self._show_help()
+            return True
+
+        sub = args[0].lower()
+
+        # ── Utility commands ──
+        if sub == "key":
+            return self._cmd_key(args[1:])
+        if sub == "model":
+            return self._cmd_model(args[1:])
+        if sub == "ctx":
+            return self._cmd_ctx()
+        if sub == "clear":
+            return self._cmd_clear()
+        if sub == "smart":
+            return self._cmd_smart(args[1:])
+        if sub == "history":
+            return self._cmd_history()
+        if sub == "prompts":
+            return self._cmd_prompts()
+
+        # ── Quick prompts ──
+        if sub in self.QUICK_PROMPTS:
+            self._ask(self.QUICK_PROMPTS[sub])
+            return True
+
+        # Semua selain subcommand di atas → dianggap pertanyaan bebas
+        question = " ".join(args)
+        self._ask(question)
+        return True
+
+    # ── Subcommands ─────────────────────────────────────────────────────────────
+
+    def _cmd_key(self, args):
+        if not args:
+            masked = ("*" * (len(self._api_key) - 6) + self._api_key[-6:]) if len(self._api_key) > 6 else "belum diset"
+            console.print(f"[cyan]API Key:[/cyan] {masked}")
+            return True
+        self._api_key = args[0].strip()
+        console.print("[green]✓ API key disimpan.[/green]")
+        return True
+
+    def _cmd_model(self, args):
+        if not args:
+            console.print(f"[cyan]Model aktif:[/cyan] {self._model}")
+            return True
+        self._model = args[0].strip()
+        console.print(f"[green]✓ Model → {self._model}[/green]")
+        return True
+
+    def _cmd_ctx(self):
+        if not self._context_lines:
+            console.print("[yellow]Context kosong. Jalankan modul dulu.[/yellow]")
+            return True
+        ctx = "\n".join(self._context_lines)
+        console.print(f"[dim]─── Context ({len(ctx)} chars) ───[/dim]")
+        console.print(ctx)
+        console.print(f"[dim]─── End context ───[/dim]")
+        return True
+
+    def _cmd_clear(self):
+        self._context_lines.clear()
+        self._history.clear()
+        console.print("[green]✓ Context dan history dihapus.[/green]")
+        return True
+
+    def _cmd_smart(self, args):
+        if args and args[0].lower() in ("off", "0", "false"):
+            self._smart = False
+            console.print("[yellow]Smart filter OFF — semua output masuk context.[/yellow]")
+        else:
+            self._smart = True
+            console.print("[green]Smart filter ON — hanya output relevan masuk context.[/green]")
+        return True
+
+    def _cmd_history(self):
+        if not self._history:
+            console.print("[yellow]History kosong.[/yellow]")
+            return True
+        for msg in self._history:
+            role  = msg["role"].upper()
+            color = "cyan" if role == "USER" else "green"
+            console.print(f"[bold {color}][{role}][/bold {color}] {msg['content'][:200]}")
+        return True
+
+    def _cmd_prompts(self):
+        table = Table(box=box.SIMPLE, show_header=True, header_style="bold white")
+        table.add_column("Shortcut",    style="bold cyan",  width=12)
+        table.add_column("Pertanyaan",  style="white",      min_width=50)
+        for key, prompt_text in self.QUICK_PROMPTS.items():
+            table.add_row(f"ai {key}", prompt_text[:80] + ("…" if len(prompt_text) > 80 else ""))
+        console.print(Panel(table, title="Quick Prompts", border_style="cyan", expand=False))
+        return True
+
+    def _show_help(self):
+        console.print(
+            "[bold white]ai[/bold white] — LazyAI CLI\n\n"
+            "[bold yellow]── Utility ──[/bold yellow]\n"
+            "  [cyan]ai <pertanyaan>[/cyan]       tanya AI bebas (context otomatis disertakan)\n"
+            "  [cyan]ai ctx[/cyan]                lihat context yang terkumpul dari output modul\n"
+            "  [cyan]ai clear[/cyan]              hapus context & history\n"
+            "  [cyan]ai key [sk-or-...][/cyan]    set / lihat API key\n"
+            "  [cyan]ai model [name][/cyan]        set / lihat model\n"
+            "  [cyan]ai smart off|on[/cyan]        toggle smart filter\n"
+            "  [cyan]ai history[/cyan]             lihat riwayat chat\n"
+            "  [cyan]ai prompts[/cyan]             tampilkan semua quick prompts\n\n"
+            "[bold yellow]── Quick Prompts ──[/bold yellow]\n"
+            "  [cyan]ai next[/cyan]       langkah selanjutnya yang disarankan\n"
+            "  [cyan]ai vulns[/cyan]      identifikasi vulnerability dari output\n"
+            "  [cyan]ai explain[/cyan]    jelaskan temuan dengan bahasa sederhana\n"
+            "  [cyan]ai modules[/cyan]    sarankan modul Lazy Framework berikutnya\n"
+            "  [cyan]ai cve[/cyan]        cek CVE relevan dari service/versi\n"
+            "  [cyan]ai summary[/cyan]    ringkasan port, service, dan OS\n"
+            "  [cyan]ai privesc[/cyan]    cek potensi privilege escalation\n"
+            "  [cyan]ai creds[/cyan]      cek credential/hash yang bocor\n"
+            "  [cyan]ai os[/cyan]         identifikasi OS dan versi target\n"
+            "  [cyan]ai report[/cyan]     draft laporan dari semua temuan\n"
+        )
+
+    # ── Core: kirim ke OpenRouter ────────────────────────────────────────────────
+
+    def _ask(self, question: str):
+        if not self._api_key:
+            console.print("[red]API key belum diset. Gunakan: ai key <sk-or-...>[/red]")
+            return
+
+        # Susun pesan — sertakan context jika ada
+        user_content = question
+        if self._context_lines:
+            ctx_text = "\n".join(self._context_lines)
+            user_content = f"Context dari output terminal:\n{ctx_text}\n\nPertanyaan: {question}"
+
+        self._history.append({"role": "user", "content": user_content})
+
+        messages = [{"role": "system", "content": CLI_SYSTEM_PROMPT}] + self._history
+
+        console.print(f"[dim]LazyAI ({self._model}) ...[/dim]")
+
+        try:
+            response = requests.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization":  f"Bearer {self._api_key}",
+                    "Content-Type":   "application/json",
+                    "HTTP-Referer":   "https://lazyframework.local",
+                    "X-Title":        "Lazy Framework CLI",
+                },
+                json={
+                    "model":    self._model,
+                    "messages": messages,
+                    "stream":   True,
+                },
+                stream=True,
+                timeout=120,
+            )
+            response.raise_for_status()
+
+            console.print("[bold green][LazyAI][/bold green] ", end="")
+            full_reply = ""
+            for line in response.iter_lines():
+                if not line or line == b"data: [DONE]":
+                    continue
+                raw = line.decode().removeprefix("data: ")
+                try:
+                    data  = json.loads(raw)
+                    token = data["choices"][0]["delta"].get("content", "")
+                    if token:
+                        print(token, end="", flush=True)
+                        full_reply += token
+                except Exception:
+                    pass
+            print()  # newline setelah streaming selesai
+
+            if full_reply:
+                self._history.append({"role": "assistant", "content": full_reply})
+
+        except requests.exceptions.ConnectionError:
+            console.print("[red]Tidak bisa terhubung ke OpenRouter. Cek koneksi.[/red]")
+        except requests.exceptions.HTTPError as e:
+            code = e.response.status_code if e.response else "?"
+            msgs = {401: "API key tidak valid (401).",
+                    402: "Kredit habis (402). Top up di openrouter.ai.",
+                    429: "Rate limit (429). Tunggu sebentar."}
+            console.print(f"[red]{msgs.get(code, f'HTTP error {code}: {e}')}[/red]")
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+
 @dataclass
 class ModuleInstance:
     name: str
@@ -60,6 +392,7 @@ class LazyFramework:
         self.modules, self.metadata = {}, {}
         self.loaded_module: Optional[ModuleInstance] = None
         self.session = {"user": os.getenv("USER", "unknown")}
+        self.ai = CLIAssistant()          # ← AI CLI assistant
         self.scan_modules()
         self.auto_cleanup()
         self.external_tools = self._scan_external_tools()
@@ -268,12 +601,81 @@ class LazyFramework:
                         history_entry["results"] = f"Missing dependencies: {', '.join(missing_deps)}"
                     return
             
-            # Jalankan module
-            result = self.loaded_module.run(self.session)
-            
+            # Jalankan module — output terminal tetap normal,
+            # sambil capture teks bersih untuk AI context via tee
+            import io, builtins, sys
+            from rich.console import Console as RichConsole
+
+            # Buffer untuk AI (tanpa ANSI/markup)
+            ai_buf = io.StringIO()
+
+            # Tee stdout: tulis ke terminal asli DAN ke ai_buf
+            class _TeeStdout:
+                """Intercept print() biasa — teruskan ke sys.__stdout__ dan ai_buf."""
+                def write(self, s):
+                    sys.__stdout__.write(s)
+                    ai_buf.write(s)
+                def flush(self):
+                    sys.__stdout__.flush()
+
+            # Tee console: intercept console.print() → terminal + ai_buf
+            _orig_console = getattr(builtins, 'console', None)
+
+            class _TeeConsole:
+                """Intercept console.print() — teruskan ke console asli dan ai_buf."""
+                def print(self, *args, **kwargs):
+                    if _orig_console:
+                        _orig_console.print(*args, **kwargs)
+                    plain = " ".join(str(a) for a in args) + "\n"
+                    ai_buf.write(plain)
+
+                def __getattr__(self, name):
+                    return getattr(_orig_console, name)
+
+            tee = _TeeConsole()
+
+            # Pasang tee ke builtins dan stdout
+            _orig_stdout     = sys.stdout
+            sys.stdout       = _TeeStdout()
+            builtins.console = tee
+
+            # Patch console lokal di dalam modul itu sendiri
+            # (menangani modul seperti wpscan.py yang punya `console = Console()` sendiri)
+            mod_obj = self.loaded_module.module
+            _mod_orig_console = getattr(mod_obj, 'console', None)
+            if _mod_orig_console is not None:
+                # Buat tee khusus yang tetap teruskan ke console lokal modul (warna tetap jalan)
+                class _ModTeeConsole:
+                    def print(self, *args, **kwargs):
+                        _mod_orig_console.print(*args, **kwargs)  # tampil di terminal dengan warna
+                        plain = " ".join(str(a) for a in args) + "\n"
+                        ai_buf.write(plain)                        # plain text ke AI
+                    def __getattr__(self, name):
+                        return getattr(_mod_orig_console, name)
+                mod_obj.console = _ModTeeConsole()
+
+            try:
+                result = self.loaded_module.run(self.session)
+            finally:
+                sys.stdout       = _orig_stdout
+                builtins.console = _orig_console
+                # Kembalikan console lokal modul
+                if _mod_orig_console is not None:
+                    mod_obj.console = _mod_orig_console
+
+            # Gabungkan: teks dari tee + return value (jika ada)
+            captured = "\n".join(filter(None, [
+                ai_buf.getvalue(),
+                str(result) if result else "",
+            ])).strip()
+
+            # Inject ke AI context (smart filter otomatis strip noise)
+            if captured:
+                self.ai.inject(captured)
+
             # Update history entry setelah run selesai
             if history_entry:
-                history_entry["results"] = str(result) if result else "No output"
+                history_entry["results"] = captured if captured else "No output"
                 history_entry["status"] = "executed"
                 
             console.print("Module executed successfully.", style="green")
@@ -306,6 +708,11 @@ class LazyFramework:
             ("cd <dir>", "Change working directory"),
             ("ls", "List current directory"),
             ("clear", "Clear terminal screen"),
+            ("ai <question>", "Ask LazyAI (uses captured output as context)"),
+            ("ai key <sk-or->", "Set OpenRouter API key"),
+            ("ai model <name>", "Switch AI model"),
+            ("ai ctx", "Show current AI context"),
+            ("ai clear", "Clear AI context & history"),
             ("exit / quit", "Exit the program"),
         ]
         table = Table(title="Core Commands", box=box.SIMPLE_HEAVY)
@@ -800,6 +1207,9 @@ class LazyFramework:
     def cmd_clear(self, args): 
         os.system("cls" if platform.system().lower() == "windows" else "clear")
 
+    def cmd_ai(self, args):
+        self.ai.handle(args)
+
     def repl(self):
         # Gunakan banner yang sesuai dengan environment
         banner_output = get_random_banner()
@@ -819,7 +1229,11 @@ class LazyFramework:
             print(banner_output)
         # Ini akan menyarankan perintah dasar dan semua nama modul yang ada
         module_list = [k.replace("modules/", "", 1) for k in self.modules.keys()]
-        commands = ['use', 'set', 'run', 'show', 'info', 'search', 'back', 'help', 'exit']
+        commands = ['use', 'set', 'run', 'show', 'info', 'search', 'back', 'help', 'exit',
+                    'ai', 'ai key', 'ai model', 'ai ctx', 'ai clear', 'ai smart', 'ai history',
+                    'ai prompts',
+                    'ai next', 'ai vulns', 'ai explain', 'ai modules', 'ai cve',
+                    'ai summary', 'ai privesc', 'ai creds', 'ai os', 'ai report']
         lzf_completer = WordCompleter(commands + module_list, ignore_case=True)
  
         while True:
